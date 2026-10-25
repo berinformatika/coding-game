@@ -451,7 +451,7 @@
             updateRobotVisual();
         }
 
-        async function runProgram() {
+        function runProgram() {
             if (isRunning) return;
             resetGame(); // Kembalikan robot ke titik awal sebelum jalan
             
@@ -466,26 +466,36 @@
 
             // Ubah susunan blok menjadi array perintah (termasuk isi looping)
             let commands = parseBlocks(topBlocks[0]);
+            let currentIndex = 0;
 
-            for (let i = 0; i < commands.length; i++) {
-                if (!isRunning && !hasFailed) break; 
+            // Menggunakan setTimeout berantai untuk menghindari error "infinite loop" di code editor
+            function executeNext() {
+                // Berhenti paksa jika user menekan tombol Ulangi
+                if (!isRunning && !hasFailed) return;
                 
-                executeCommand(commands[i]);
-                
-                // Pindahkan fungsi update visual ke SINI agar langkah yang salah tetap di-render
+                // Jika semua langkah selesai atau gagal
+                if (currentIndex >= commands.length || hasFailed) {
+                    if (!hasFailed && isRunning) {
+                        checkWinCondition();
+                    }
+                    isRunning = false;
+                    return;
+                }
+
+                executeCommand(commands[currentIndex]);
                 updateRobotVisual();
-                
-                // Berhenti segera jika command menyebabkan robot keluar batas
-                if (hasFailed) break; 
-                
-                // Jeda pergerakan dengan await (hanya valid di fungsi async)
-                await new Promise(resolve => setTimeout(resolve, 600));
+                currentIndex++;
+
+                // Lanjut ke langkah berikutnya setelah jeda 600ms
+                if (!hasFailed) {
+                    setTimeout(executeNext, 600);
+                } else {
+                    isRunning = false;
+                }
             }
 
-            if (!hasFailed && isRunning) {
-                checkWinCondition();
-            }
-            isRunning = false;
+            // Mulai langkah pertama
+            executeNext();
         }
 
         function parseBlocks(block) {
