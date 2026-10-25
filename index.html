@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚀 Belajar Coding - Misi Antariksa! 💡</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts untuk tampilan Kids-Friendly -->
+    <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@500;700&display=swap" rel="stylesheet">
+    
+    <!-- Blockly Library -->
+    <script src="https://unpkg.com/blockly/blockly.min.js"></script>
+
+    <style>
+        body {
+            font-family: 'Quicksand', sans-serif;
+            background-color: #f0f8ff;
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden;
+        }
+
+        /* Styling untuk Peta Game */
+        #game-board {
+            display: grid;
+            /* Menggunakan variabel CSS untuk membuat jumlah kolom dan baris dinamis */
+            grid-template-columns: repeat(var(--grid-cols, 5), 1fr);
+            grid-template-rows: repeat(var(--grid-rows, 5), 1fr);
+            width: 100%;
+            max-width: 400px;
+            aspect-ratio: 1/1;
+            background-color: #2d3748;
+            border-radius: 12px;
+            padding: 8px;
+            gap: 0;
+            position: relative;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        }
+
+        .tile {
+            border-radius: 8px;
+            width: 92%;
+            height: 92%;
+            margin: 4%;
+            transition: background-color 0.3s ease;
+            /* Tambahan untuk menengahkan posisi lampu */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* Tipe Tile */
+        .tile-0 { background-color: transparent; } /* Kosong */
+        .tile-1 { background-color: #cbd5e1; border-bottom: 4px solid #94a3b8; } /* Path Biasa */
+        
+        /* Target Belum Menyala (Lampu Mati) */
+        .tile-2 { background-color: #3b82f6; border-bottom: 4px solid #2563eb; } 
+        .tile-2::after {
+            content: '💡';
+            /* Ukuran lampu mengecil otomatis jika map makin besar (dinamis) */
+            font-size: calc(180px / var(--grid-cols, 5));
+            filter: grayscale(100%) brightness(70%) opacity(40%);
+        }
+
+        /* Target Menyala (Lampu Hidup & Berkedip) */
+        .tile-3 { background-color: #facc15; border-bottom: 4px solid #ca8a04; box-shadow: 0 0 15px #fef08a; } 
+        .tile-3::after {
+            content: '💡';
+            font-size: calc(180px / var(--grid-cols, 5));
+            filter: drop-shadow(0 0 8px rgba(255,255,255,0.9));
+            animation: pulse-light 1.5s infinite alternate;
+        }
+
+        /* Animasi agar lampu menyala seperti bernapas */
+        @keyframes pulse-light {
+            0% { transform: scale(0.9); }
+            100% { transform: scale(1.15); }
+        }
+
+        /* Robot Sprite */
+        #robot {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            transition: transform 0.4s ease-in-out;
+            /* Lebar dan tinggi robot juga dinamis mengikuti ukuran grid */
+            width: calc((100% - 16px) / var(--grid-cols, 5)); 
+            height: calc((100% - 16px) / var(--grid-rows, 5));
+        }
+
+        /* Tombol bergaya game 3D */
+        .btn-game {
+            transition: all 0.1s;
+            border-bottom-width: 4px;
+        }
+        .btn-game:active {
+            transform: translateY(4px);
+            border-bottom-width: 0px;
+            margin-bottom: 4px;
+        }
+
+        /* Animasi Error (Baru) */
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-8px); }
+            40%, 80% { transform: translateX(8px); }
+        }
+        .shake-animation {
+            animation: shake 0.4s ease-in-out;
+        }
+        .board-error {
+            border: 4px solid #ef4444 !important;
+            box-shadow: 0 0 25px rgba(239, 68, 68, 0.6) !important;
+        }
+
+        /* Workspace Blockly */
+        #blocklyDiv {
+            height: 550px;
+            width: 100%;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            border: 4px solid #93c5fd;
+            background-color: white;
+        }
+
+        /* Menyembunyikan logo Blockly untuk interface yang lebih bersih (Opsional) */
+        .blocklyLogo {
+            display: none !important;
+        }
+    </style>
+</head>
+<body class="flex flex-col min-h-screen">
+
+    <!-- Header -->
+    <header class="bg-blue-500 text-white py-4 shadow-md z-10 flex flex-col md:flex-row justify-center md:justify-between items-center px-4 md:px-8 relative">
+        <h1 class="text-2xl md:text-3xl font-bold tracking-wide text-center">🚀 Belajar Coding - Misi Antariksa! 💡</h1>
+        <div class="mt-3 md:mt-0 bg-blue-600 px-4 py-2 rounded-xl font-bold text-lg md:text-xl shadow-inner whitespace-nowrap">
+            <span id="level-indicator">Level 1</span>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-grow flex flex-col md:flex-row p-4 gap-6 max-w-[1400px] mx-auto w-full">
+        
+        <!-- Bagian Kiri: Area Blockly (Urutan ke-2 di mobile, ke-1 di desktop) -->
+        <section class="w-full md:w-7/12 flex flex-col order-2 md:order-1">
+            <div id="blocklyDiv"></div>
+        </section>
+
+        <!-- Bagian Kanan: Area Game (Urutan ke-1 di mobile, ke-2 di desktop) -->
+        <section class="w-full md:w-5/12 flex flex-col items-center order-1 md:order-2">
+            
+            <div id="game-board">
+                <!-- Pesan Gagal Keluar Batas (Baru) -->
+                <div id="failMessage" class="absolute inset-0 flex justify-center items-center bg-red-500 bg-opacity-90 text-white font-bold text-2xl rounded-xl z-50 opacity-0 pointer-events-none transition-opacity duration-300">
+                    Oops! Keluar batas!
+                </div>
+                
+                <!-- Tiles akan dirender oleh JavaScript -->
+                <div id="robot">
+                    <!-- SVG Robot Pesawat / Segitiga menghadap ATAS (0 derajat) -->
+                    <svg viewBox="0 0 100 100" style="width: 80%; height: 80%; filter: drop-shadow(0px 4px 4px rgba(0,0,0,0.5));">
+                        <polygon points="50,10 90,90 50,75 10,90" fill="#38bdf8" stroke="#0284c7" stroke-width="6" stroke-linejoin="round" />
+                        <circle cx="50" cy="65" r="10" fill="#0ea5e9" />
+                    </svg>
+                </div>
+            </div>
+
+            <!-- Kontrol Permainan -->
+            <div class="flex gap-4 mt-8 w-full max-w-[400px]">
+                <button onclick="runProgram()" class="btn-game flex-1 bg-green-500 hover:bg-green-400 border-green-700 text-white font-bold py-3 px-4 rounded-xl text-lg flex items-center justify-center gap-2">
+                    ▶️ Jalankan
+                </button>
+                <button onclick="resetGame()" class="btn-game flex-1 bg-red-500 hover:bg-red-400 border-red-700 text-white font-bold py-3 px-4 rounded-xl text-lg flex items-center justify-center gap-2">
+                    🔄 Ulangi
+                </button>
+            </div>
+            
+            <div class="mt-6 bg-white p-4 rounded-xl shadow border-2 border-blue-100 w-full max-w-[400px] text-gray-600 text-sm">
+                <strong>Cara Bermain:</strong>
+                <ul class="list-disc pl-5 mt-2 space-y-1">
+                    <li>Pesawatmu selalu mulai dari <strong>BAWAH</strong> menghadap ke <strong>ATAS</strong>.</li>
+                    <li>Gunakan <strong>Maju</strong> untuk melangkah searah hadapan pesawat.</li>
+                    <li>Gunakan <strong>Nyalakan Lampu</strong> saat berada di atas kotak biru.</li>
+                    <li>Gunakan blok <strong>Ulangi</strong> untuk meringkas kodemu!</li>
+                </ul>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Modal Pesan Sukses -->
+    <div id="successModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex justify-center items-center z-50">
+        <div class="bg-white rounded-2xl p-8 max-w-sm w-full text-center shadow-2xl transform scale-100 transition-transform">
+            <div class="text-6xl mb-4">🎉</div>
+            <h2 class="text-2xl font-bold text-green-500 mb-2">Hore! Kamu Berhasil!</h2>
+            <p class="text-gray-600 mb-6" id="successMessage">Kamu telah berhasil menyalakan semua target menggunakan kode blok!</p>
+            <div class="flex flex-col gap-3">
+                <button id="nextLevelBtn" onclick="nextLevel()" class="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-xl text-lg w-full transition-colors hidden shadow-md border-b-4 border-green-700 active:border-b-0 active:translate-y-1">
+                    Level Selanjutnya ➡️
+                </button>
+                <button onclick="closeModalAndReset()" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-6 rounded-xl text-md w-full transition-colors shadow-md border-b-4 border-blue-700 active:border-b-0 active:translate-y-1">
+                    Main Ulang Level Ini
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toolbox XML untuk Blockly -->
+    <xml id="toolbox" style="display: none">
+        <block type="move_forward"></block>
+        <block type="turn_left"></block>
+        <block type="turn_right"></block>
+        <block type="light_up"></block>
+        <block type="repeat_loop"></block>
+    </xml>
+
+    <script>
+        // --- KONFIGURASI BLOCKS BLOCKLY ---
+        Blockly.defineBlocksWithJsonArray([
+            {
+                "type": "move_forward",
+                "message0": "Maju ⬆️",
+                "previousStatement": null,
+                "nextStatement": null,
+                "colour": 230,
+                "tooltip": "Gerakkan robot maju 1 langkah",
+            },
+            {
+                "type": "turn_left",
+                "message0": "Belok Kiri ↩️",
+                "previousStatement": null,
+                "nextStatement": null,
+                "colour": 160,
+                "tooltip": "Putar robot ke kiri",
+            },
+            {
+                "type": "turn_right",
+                "message0": "Belok Kanan ↪️",
+                "previousStatement": null,
+                "nextStatement": null,
+                "colour": 160,
+                "tooltip": "Putar robot ke kanan",
+            },
+            {
+                "type": "light_up",
+                "message0": "Nyalakan Lampu 💡",
+                "previousStatement": null,
+                "nextStatement": null,
+                "colour": 60,
+                "tooltip": "Nyalakan lampu pada lantai biru",
+            },
+            {
+                "type": "repeat_loop",
+                "message0": "Ulangi %1 kali %2 %3",
+                "args0": [
+                    { "type": "field_number", "name": "TIMES", "value": 3, "min": 1, "max": 10 },
+                    { "type": "input_dummy" },
+                    { "type": "input_statement", "name": "DO" }
+                ],
+                "previousStatement": null,
+                "nextStatement": null,
+                "colour": 120,
+                "tooltip": "Ulangi perintah di dalamnya beberapa kali",
+            }
+        ]);
+
+        let workspace;
+
+        // --- LEVEL DATA (BOTTOM TO TOP PROGRESSION) ---
+        // 0 = Kosong, 1 = Lantai Abu, 2 = Target Biru (belum menyala)
+        // startDir: 0 = Utara (Atas), 1 = Timur (Kanan), 2 = Selatan (Bawah), 3 = Barat (Kiri)
+        const levels = [
+            {
+                // Level 1: Lurus ke atas
+                map: [
+                    [0, 0, 2, 0, 0],
+                    [0, 0, 1, 0, 0],
+                    [0, 0, 1, 0, 0],
+                    [0, 0, 1, 0, 0],
+                    [0, 0, 1, 0, 0]
+                ],
+                startX: 2, startY: 4, startDir: 0 
+            },
+            {
+                // Level 2: Belok satu kali
+                map: [
+                    [0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0],
+                    [0, 1, 1, 2, 0],
+                    [0, 1, 0, 0, 0],
+                    [0, 1, 0, 0, 0]
+                ],
+                startX: 1, startY: 4, startDir: 0 
+            },
+            {
+                // Level 3: Tangga (Butuh Loop agar ringkas)
+                map: [
+                    [0, 0, 0, 0, 0],
+                    [0, 0, 0, 2, 0],
+                    [0, 0, 1, 1, 0],
+                    [0, 1, 1, 0, 0],
+                    [0, 1, 0, 0, 0]
+                ],
+                startX: 1, startY: 4, startDir: 0 
+            },
+            {
+                // Level 4: Cabang (Banyak Target)
+                map: [
+                    [2, 0, 2, 0, 2],
+                    [1, 0, 1, 0, 1],
+                    [1, 1, 1, 1, 1],
+                    [0, 0, 1, 0, 0],
+                    [0, 0, 1, 0, 0]
+                ],
+                startX: 2, startY: 4, startDir: 0 
+            },
+            {
+                // Level 5: Lintasan Rumit Berkelok
+                map: [
+                    [2, 1, 2, 1, 2],
+                    [0, 0, 0, 0, 1],
+                    [2, 1, 1, 0, 1],
+                    [1, 0, 1, 0, 1],
+                    [1, 0, 1, 1, 1]
+                ],
+                startX: 1, startY: 4, startDir: 0 
+            },
+            {
+                // Level 6: Map 6x6 - Ekspedisi Spiral
+                map: [
+                    [2, 1, 1, 1, 1, 2],
+                    [1, 0, 0, 0, 0, 1],
+                    [1, 0, 2, 1, 0, 1],
+                    [1, 0, 0, 1, 0, 1],
+                    [1, 0, 0, 0, 0, 1],
+                    [1, 1, 1, 1, 1, 1]
+                ],
+                startX: 5, startY: 5, startDir: 0 
+            },
+            {
+                // Level 7: Map 7x7 - Labirin Besar
+                map: [
+                    [2, 0, 2, 0, 2, 0, 2],
+                    [1, 0, 1, 0, 1, 0, 1],
+                    [1, 1, 1, 1, 1, 1, 1],
+                    [0, 0, 1, 0, 0, 0, 1],
+                    [2, 1, 1, 0, 2, 1, 1],
+                    [0, 0, 1, 0, 1, 0, 0],
+                    [0, 0, 1, 1, 1, 0, 0]
+                ],
+                startX: 3, startY: 6, startDir: 0
+            }
+        ];
+
+        let currentLevelIndex = 0;
+
+        // --- STATE GAME ---
+        let currentMap = [];
+        let robotX = 0;
+        let robotY = 0;
+        let robotDir = 0; // Mulai menghadap utara (0)
+        let robotRotationDeg = 0; // Derajat 0 = menghadap atas
+        let isRunning = false;
+        let hasFailed = false; // State tambahan untuk gagal
+
+        // --- INISIALISASI ---
+        window.onload = function() {
+            // Inject Blockly
+            workspace = Blockly.inject('blocklyDiv', {
+                toolbox: document.getElementById('toolbox'),
+                trashcan: true,
+                scrollbars: true,
+                move: {
+                    scrollbars: true,
+                    drag: true,
+                    wheel: true
+                }
+            });
+
+            loadLevel(currentLevelIndex);
+        };
+
+        function loadLevel(index) {
+            currentLevelIndex = index;
+            document.getElementById('level-indicator').innerText = `Level ${index + 1}`;
+            document.getElementById('successMessage').innerText = "Kamu telah berhasil menyalakan semua target menggunakan kode blok!";
+            workspace.clear();
+            resetGame();
+        }
+
+        // --- LOGIKA GAME ---
+        function renderMap() {
+            const board = document.getElementById('game-board');
+            // Hapus semua tile (jangan hapus robot SVG)
+            const tiles = board.querySelectorAll('.tile');
+            tiles.forEach(t => t.remove());
+
+            // Deteksi ukuran array map dinamis
+            let rows = currentMap.length;
+            let cols = currentMap[0].length;
+
+            for (let y = 0; y < rows; y++) {
+                for (let x = 0; x < cols; x++) {
+                    const tileDiv = document.createElement('div');
+                    tileDiv.className = `tile tile-${currentMap[y][x]}`;
+                    tileDiv.id = `tile-${x}-${y}`;
+                    board.appendChild(tileDiv);
+                }
+            }
+            // Pastikan robot berada di atas layer tile
+            board.appendChild(document.getElementById('robot'));
+        }
+
+        function updateRobotVisual() {
+            const robotElement = document.getElementById('robot');
+            // Translasi (posisi) dan rotasi (arah) diatur bersamaan.
+            // Nilai 100% pada translate sangat presisi karena merujuk ke lebar/tinggi dari robot itu sendiri.
+            robotElement.style.transform = `translate(${robotX * 100}%, ${robotY * 100}%) rotate(${robotRotationDeg}deg)`;
+        }
+
+        function resetGame() {
+            isRunning = false;
+            hasFailed = false;
+            const board = document.getElementById('game-board');
+            const msg = document.getElementById('failMessage');
+            if (board) board.classList.remove('shake-animation', 'board-error');
+            if (msg) msg.style.opacity = '0';
+
+            const lvl = levels[currentLevelIndex];
+            // Reset state
+            currentMap = JSON.parse(JSON.stringify(lvl.map));
+            robotX = lvl.startX;
+            robotY = lvl.startY;
+            robotDir = lvl.startDir;
+            robotRotationDeg = robotDir * 90;
+
+            // Update variabel CSS untuk lebar dan tinggi grid secara dinamis
+            document.documentElement.style.setProperty('--grid-rows', currentMap.length);
+            document.documentElement.style.setProperty('--grid-cols', currentMap[0].length);
+
+            renderMap();
+            updateRobotVisual();
+        }
+
+        async function runProgram() {
+            if (isRunning) return;
+            resetGame(); // Kembalikan robot ke titik awal sebelum jalan
+            
+            isRunning = true;
+            
+            // Ambil susunan blok teratas dari Blockly
+            const topBlocks = workspace.getTopBlocks(true);
+            if (topBlocks.length === 0) {
+                isRunning = false;
+                return;
+            }
+
+            // Ubah susunan blok menjadi array perintah (termasuk isi looping)
+            let commands = parseBlocks(topBlocks[0]);
+
+            for (let i = 0; i < commands.length; i++) {
+                if (!isRunning && !hasFailed) break; 
+                
+                executeCommand(commands[i]);
+                
+                // Pindahkan fungsi update visual ke SINI agar langkah yang salah tetap di-render
+                updateRobotVisual();
+                
+                // Berhenti segera jika command menyebabkan robot keluar batas
+                if (hasFailed) break; 
+                
+                // Jeda pergerakan dengan await (hanya valid di fungsi async)
+                await new Promise(resolve => setTimeout(resolve, 600));
+            }
+
+            if (!hasFailed && isRunning) {
+                checkWinCondition();
+            }
+            isRunning = false;
+        }
+
+        function parseBlocks(block) {
+            let commands = [];
+            let currentBlock = block;
+            
+            while (currentBlock) {
+                if (currentBlock.type === 'move_forward' || 
+                    currentBlock.type === 'turn_left' || 
+                    currentBlock.type === 'turn_right' || 
+                    currentBlock.type === 'light_up') {
+                    commands.push(currentBlock.type);
+                } else if (currentBlock.type === 'repeat_loop') {
+                    const times = parseInt(currentBlock.getFieldValue('TIMES'));
+                    const childBlock = currentBlock.getInputTargetBlock('DO');
+                    if (childBlock) {
+                        const childCommands = parseBlocks(childBlock);
+                        for (let i = 0; i < times; i++) {
+                            commands = commands.concat(childCommands); // Duplikasi sesuai angka loop
+                        }
+                    }
+                }
+                currentBlock = currentBlock.getNextBlock();
+            }
+            return commands;
+        }
+
+        // Fungsi Trigger Gagal (Baru)
+        function triggerFail() {
+            isRunning = false;
+            hasFailed = true;
+
+            const board = document.getElementById('game-board');
+            const msg = document.getElementById('failMessage');
+
+            // Tunggu 0.4 detik (sama dengan durasi transisi CSS pesawat) agar pesawat terlihat melompat keluar dulu
+            setTimeout(() => {
+                // Terapkan animasi dan tampilkan pesan
+                board.classList.add('shake-animation', 'board-error');
+                msg.style.opacity = '1';
+
+                // Auto-reset setelah 1.5 detik
+                setTimeout(() => {
+                    board.classList.remove('shake-animation', 'board-error');
+                    msg.style.opacity = '0';
+                    
+                    // Reset posisi visual murni tanpa validasi isRunning
+                    const lvl = levels[currentLevelIndex];
+                    currentMap = JSON.parse(JSON.stringify(lvl.map));
+                    robotX = lvl.startX;
+                    robotY = lvl.startY;
+                    robotDir = lvl.startDir;
+                    robotRotationDeg = robotDir * 90; 
+                    renderMap();
+                    updateRobotVisual();
+                    
+                    hasFailed = false;
+                }, 1500);
+            }, 400); // 400ms delay
+        }
+
+        function executeCommand(cmd) {
+            if (cmd === 'turn_left') {
+                robotDir = (robotDir + 3) % 4; // Berlawanan arah jarum jam
+                robotRotationDeg -= 90;
+            } 
+            else if (cmd === 'turn_right') {
+                robotDir = (robotDir + 1) % 4; // Searah jarum jam
+                robotRotationDeg += 90;
+            }
+            else if (cmd === 'move_forward') {
+                let nextX = robotX;
+                let nextY = robotY;
+
+                if (robotDir === 0) nextY--;      // Utara (Atas/Y--)
+                else if (robotDir === 1) nextX++; // Timur (Kanan/X++)
+                else if (robotDir === 2) nextY++; // Selatan (Bawah/Y++)
+                else if (robotDir === 3) nextX--; // Barat (Kiri/X--)
+
+                // UPDATE posisi visual robot TERLEBIH DAHULU agar terlihat keluar jalur
+                robotX = nextX;
+                robotY = nextY;
+
+                // Cek aman: apakah keluar dari array grid dinamis, ATAU jatuh ke lantai kosong (tile 0)
+                let isOutOfBounds = false;
+                let rows = currentMap.length;
+                let cols = currentMap[0].length;
+
+                if (nextX < 0 || nextX >= cols || nextY < 0 || nextY >= rows) {
+                    isOutOfBounds = true;
+                } else if (currentMap[nextY][nextX] === 0) {
+                    isOutOfBounds = true;
+                }
+
+                if (isOutOfBounds) {
+                    triggerFail();
+                }
+            }
+            else if (cmd === 'light_up') {
+                // Menyalakan lampu jika robot berada di target (2)
+                if (currentMap[robotY][robotX] === 2) {
+                    currentMap[robotY][robotX] = 3; 
+                    
+                    const tileId = `tile-${robotX}-${robotY}`;
+                    const tileEl = document.getElementById(tileId);
+                    if (tileEl) {
+                        tileEl.className = `tile tile-3`;
+                    }
+                }
+            }
+        }
+
+        function checkWinCondition() {
+            let win = true;
+            let rows = currentMap.length;
+            let cols = currentMap[0].length;
+
+            for (let y = 0; y < rows; y++) {
+                for (let x = 0; x < cols; x++) {
+                    if (currentMap[y][x] === 2) { // Masih ada target belum menyala
+                        win = false;
+                        break;
+                    }
+                }
+            }
+
+            if (win) {
+                showSuccessModal();
+            }
+        }
+
+        // --- UI MODAL & LEVEL CONTROLS ---
+        function showSuccessModal() {
+            const nextBtn = document.getElementById('nextLevelBtn');
+            if (currentLevelIndex < levels.length - 1) {
+                nextBtn.classList.remove('hidden');
+            } else {
+                nextBtn.classList.add('hidden');
+                document.getElementById('successMessage').innerText = "Luar Biasa! Kamu telah menamatkan semua level!";
+            }
+            document.getElementById('successModal').classList.remove('hidden');
+        }
+
+        function closeModalAndReset() {
+            document.getElementById('successModal').classList.add('hidden');
+            resetGame();
+        }
+
+        function nextLevel() {
+            document.getElementById('successModal').classList.add('hidden');
+            if (currentLevelIndex < levels.length - 1) {
+                loadLevel(currentLevelIndex + 1);
+            }
+        }
+
+    </script>
+</body>
+</html>
